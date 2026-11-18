@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TESR Track Count — อ่านเลขพัสดุ & นับจำนวนจาก PDF</title>
+<meta name="description" content="อัปโหลดใบปะหน้าพัสดุ (PDF) แล้วแยกเลข Tracking ตามจำนวนสินค้าอัตโนมัติ — Made by TESR">
+<meta name="theme-color" content="#ffffff">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#141416; --ink2:#3b3b40; --muted:#7a7a82; --line:#e8e6e1; --line2:#f0eeea;
+  --bg:#f7f6f3; --card:#ffffff;
+  --crimson:#8B0000; --red:#b3121f; --red-soft:#fbeeee;
+  --gold:#C9A84C; --gold-soft:#faf5e6;
+  --ok:#1f9d55; --ok-soft:#e9f7ef; --warn:#b7791f; --warn-soft:#fff6e5;
+  --r:18px; --shadow:0 1px 2px rgba(20,20,22,.04),0 8px 24px rgba(20,20,22,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:"IBM Plex Sans Thai",system-ui,sans-serif;color:var(--ink);
+  background:
+    radial-gradient(1200px 400px at 50% -120px,rgba(139,0,0,.07),transparent 70%),
+    radial-gradient(circle at 1px 1px,rgba(20,20,22,.07) 1px,transparent 0) 0 0/22px 22px,
+    var(--bg);
+  min-height:100dvh;-webkit-font-smoothing:antialiased;
+}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;letter-spacing:.01em}
+button{font:inherit;cursor:pointer}
+
+/* ---------- Header ---------- */
+.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:calc(env(safe-area-inset-top) + 10px) 18px 10px}
+.brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:inherit;min-width:0}
+.brand img{width:34px;height:auto}
+.brand b{font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:17px;letter-spacing:.02em;display:block;line-height:1.1}
+.brand b span{color:var(--crimson)}
+.brand small{display:block;font-family:"Chakra Petch",sans-serif;font-size:10.5px;letter-spacing:.09em;color:var(--gold);font-weight:600}
+.top .sp{flex:1}
+.ghost{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;color:var(--ink2);border-radius:11px;padding:7px 12px;font-size:13px;text-decoration:none;white-space:nowrap}
+.ghost:hover{border-color:var(--crimson);color:var(--crimson)}
+
+main{max-width:1080px;margin:0 auto;padding:26px 18px 60px}
+
+/* ---------- Hero / Drop ---------- */
+.hero{text-align:center;margin:8px 0 22px}
+.hero h1{font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:clamp(26px,5.4vw,40px);line-height:1.15;letter-spacing:.005em}
+.hero h1 em{font-style:normal;color:var(--crimson)}
+.hero p{color:var(--muted);margin-top:8px;font-size:15px}
+.hairline{width:120px;height:2px;margin:14px auto 0;border-radius:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+
+.drop{
+  position:relative;display:block;cursor:pointer;
+  background:var(--card);border-radius:24px;border:2px dashed #d9d5cc;
+  padding:clamp(28px,6vw,48px) 20px;text-align:center;box-shadow:var(--shadow);
+  transition:border-color .2s,background .2s,transform .15s;
+}
+.drop:hover{border-color:var(--crimson)}
+.drop.over{border-color:var(--crimson);background:var(--red-soft);transform:scale(1.008)}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.drop .ico{width:64px;height:64px;margin:0 auto 14px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(145deg,#a3121c,var(--crimson));box-shadow:0 10px 24px rgba(139,0,0,.25)}
+.drop .t1{font-weight:600;font-size:17px}
+.drop .t1 u{text-decoration:none;color:var(--crimson)}
+.drop .t2{color:var(--muted);font-size:13.5px;margin-top:6px}
+.drop .pill{display:inline-flex;align-items:center;gap:6px;margin-top:14px;font-size:12px;color:var(--ok);background:var(--ok-soft);border-radius:999px;padding:5px 11px}
+.drop.compact{padding:16px 18px;display:flex;align-items:center;gap:14px;text-align:left;border-radius:18px}
+.drop.compact .ico{width:42px;height:42px;margin:0;border-radius:13px;flex:none}
+.drop.compact .ico svg{width:20px;height:20px}
+.drop.compact .t1{font-size:15px}
+.drop.compact .t2,.drop.compact .pill{display:none}
+
+/* ---------- Files ---------- */
+.files{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
+.chip{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px 8px 6px 11px;font-size:13px;max-width:100%}
+.chip .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+.chip .m{color:var(--muted);font-size:12px}
+.chip button{border:0;background:var(--line2);color:var(--muted);width:22px;height:22px;border-radius:7px;line-height:1}
+.chip button:hover{background:var(--red-soft);color:var(--crimson)}
+.chip.busy{color:var(--muted)}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--crimson);animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- Summary ---------- */
+.results{margin-top:22px;display:none}
+.results.show{display:block}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media (max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:var(--shadow)}
+.stat .k{font-size:12.5px;color:var(--muted)}
+.stat .v{font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:30px;line-height:1.1;margin-top:2px}
+.stat .v small{font-size:14px;font-weight:600;color:var(--muted);margin-left:4px}
+.stat.hl{border-color:rgba(139,0,0,.25);background:linear-gradient(180deg,#fff,var(--red-soft))}
+.stat.hl .v{color:var(--crimson)}
+.stat.w .v{color:var(--warn)}
+
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:16px 0 4px}
+.btn{display:inline-flex;align-items:center;gap:7px;border-radius:12px;padding:9px 14px;font-size:14px;font-weight:500;border:1px solid var(--line);background:#fff;color:var(--ink);white-space:nowrap;transition:all .15s}
+.btn:hover{border-color:var(--ink2)}
+.btn.pri{background:var(--crimson);border-color:var(--crimson);color:#fff;box-shadow:0 6px 16px rgba(139,0,0,.22)}
+.btn.pri:hover{background:#740000}
+.btn svg{width:16px;height:16px}
+.seg{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:12px;padding:3px}
+.seg button{border:0;background:none;border-radius:9px;padding:6px 11px;font-size:13px;color:var(--muted)}
+.seg button.on{background:var(--ink);color:#fff}
+.bar .sp{flex:1}
+@media (max-width:640px){
+  .bar{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .bar .btn{justify-content:center}
+  .bar #copyAll{grid-column:1/-1;padding:12px}
+  .bar .sp{display:none}
+  .bar .seg{display:flex;grid-column:1/-1}.bar .seg button{flex:1;white-space:nowrap}
+  .bar #clear{grid-column:1/-1;color:var(--muted)}
+  .brand small{display:none}
+  .hero{margin:0 0 16px}.hero p{font-size:13.5px}
+}
+
+/* ---------- Warnings ---------- */
+.warns{margin-top:14px;background:var(--warn-soft);border:1px solid #f2dfb5;border-radius:14px;padding:12px 14px;font-size:13.5px;color:#7a5410;display:none}
+.warns.show{display:block}
+.warns b{display:block;margin-bottom:4px}
+.warns li{margin-left:18px;margin-top:2px}
+
+/* ---------- Groups ---------- */
+.product{margin-top:26px}
+.product h2{font-family:"Chakra Petch",sans-serif;font-size:19px;font-weight:700;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.product h2 .tag{font-family:"IBM Plex Sans Thai",sans-serif;font-size:12.5px;font-weight:500;color:var(--crimson);background:var(--red-soft);border-radius:999px;padding:3px 10px}
+.product h2::before{content:"";width:4px;height:20px;border-radius:2px;background:var(--crimson)}
+.groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;margin-top:12px;align-items:start}
+@media (max-width:400px){.groups{grid-template-columns:1fr}}
+.grp{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+.grp-h{display:flex;align-items:center;gap:12px;padding:14px 14px 12px 16px;border-bottom:1px solid var(--line2)}
+.qty{flex:none;min-width:56px;height:56px;border-radius:15px;display:grid;place-items:center;text-align:center;background:linear-gradient(150deg,#a3121c,var(--crimson));color:#fff;padding:0 8px;box-shadow:0 6px 14px rgba(139,0,0,.2)}
+.qty b{font-family:"Chakra Petch",sans-serif;font-size:24px;line-height:1;display:block}
+.qty i{font-style:normal;font-size:11px;opacity:.9}
+.grp-h .ti{flex:1;min-width:0}
+.grp-h .ti .a{font-weight:600;font-size:16px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.grp-h .ti .a svg{flex:none}
+.grp-h .ti .b{font-size:12.5px;color:var(--muted);margin-top:1px}
+.icon-btn{border:1px solid var(--line);background:#fff;border-radius:11px;height:36px;padding:0 11px;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2)}
+.icon-btn:hover{border-color:var(--crimson);color:var(--crimson)}
+.icon-btn.done{border-color:var(--ok);color:var(--ok);background:var(--ok-soft)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:12px;font-weight:500;color:var(--muted);text-align:left;padding:8px 10px;background:#fcfbf9;border-bottom:1px solid var(--line2)}
+td{padding:9px 10px;border-bottom:1px solid var(--line2);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.no,th.no{width:42px;text-align:right;color:var(--muted);padding-left:14px}
+td.tk{font-weight:600}
+td.tk .sub{display:block;font-family:"IBM Plex Sans Thai",sans-serif;font-weight:400;font-size:11.5px;color:var(--muted);margin-top:1px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.q,th.q{text-align:right;white-space:nowrap;padding-right:14px}
+.qb{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--ok);background:var(--ok-soft);border-radius:8px;padding:3px 8px}
+.qb.unsure{color:var(--warn);background:var(--warn-soft)}
+.qin{width:58px;border:1px solid #f0d49b;background:#fffaf0;border-radius:8px;padding:4px 6px;font:inherit;font-size:13px;text-align:right;color:var(--warn)}
+tbody tr{cursor:pointer;transition:background .12s}
+tbody tr:hover{background:#fdfcfa}
+tbody tr.packed td{color:#b5b3ad}
+tbody tr.packed td.tk{text-decoration:line-through}
+tbody tr.packed .qb{filter:grayscale(1);opacity:.5}
+.tick{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:6px;border:1.5px solid #cfccc4;vertical-align:-4px;margin-right:4px;transition:all .12s}
+tr.packed .tick{background:var(--ok);border-color:var(--ok)}
+.tick svg{opacity:0}
+tr.packed .tick svg{opacity:1}
+.grp-f{margin-top:auto;padding:9px 16px;font-size:12px;color:var(--muted);background:#fcfbf9;border-top:1px solid var(--line2);display:flex;justify-content:space-between}
+
+/* ---------- Settings ---------- */
+details.adv{margin-top:28px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 16px;font-size:13.5px;color:var(--ink2)}
+details.adv summary{cursor:pointer;font-weight:500}
+details.adv label{display:block;margin-top:10px;color:var(--muted)}
+details.adv input{width:100%;margin-top:6px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-family:"JetBrains Mono",monospace;font-size:13px}
+details.adv ul{margin:8px 0 0 18px;color:var(--muted)}
+
+footer{text-align:center;padding:10px 16px calc(env(safe-area-inset-bottom) + 26px);font-family:"Chakra Petch",sans-serif;font-size:12px;letter-spacing:.06em;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:8px}
+footer img{width:18px}
+footer b{color:var(--crimson)}
+
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 22px);transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;border-radius:12px;padding:10px 16px;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);transition:all .25s;pointer-events:none;z-index:50}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.fullpage-drop{position:fixed;inset:0;z-index:40;background:rgba(139,0,0,.08);border:3px dashed var(--crimson);display:none;place-items:center;font-family:"Chakra Petch",sans-serif;font-size:24px;color:var(--crimson);font-weight:700}
+.fullpage-drop.show{display:grid}
+
+/* ---------- Print ---------- */
+@media print{
+  @page{margin:12mm}
+  body{background:#fff}
+  .top,.drop,.files,.bar,details.adv,.icon-btn,.toast,.warns,footer .x{display:none!important}
+  main{padding:0;max-width:none}
+  .hero{margin:0 0 10px;text-align:left}
+  .hero p,.hairline{display:none}
+  .hero h1{font-size:20px}
+  .stat,.grp{box-shadow:none}
+  .groups{grid-template-columns:1fr 1fr;gap:10px}
+  .grp{break-inside:avoid}
+  .qty{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  td.tk .sub{max-width:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="https://programs.tesrshop.com/">
+      <img src="logo.png" alt="TESR">
+      <span><b>TESR <span>Track Count</span></b><small>THAI EMBEDDED SYSTEM AND ROBOTICS</small></span>
+    </a>
+    <span class="sp"></span>
+    <a class="ghost" href="https://programs.tesrshop.com/" title="กลับหน้ารวมโปรแกรม">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+      TESR Program
+    </a>
+  </div>
+</header>
+
+<main>
+  <section class="hero" id="hero">
+    <h1>อ่านเลขพัสดุ & <em>นับจำนวน</em>จาก PDF</h1>
+    <p id="heroSub">วางใบปะหน้าพัสดุ ระบบจะแยก Tracking ตามจำนวนสินค้าในแต่ละกล่องให้ทันที</p>
+    <div class="hairline"></div>
+  </section>
+
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept="application/pdf,.pdf" multiple>
+    <div class="ico">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-6"/><path d="m9 14 3-3 3 3"/></svg>
+    </div>
+    <div>
+      <div class="t1">ลากไฟล์ PDF มาวางที่นี่ หรือ <u>แตะเพื่อเลือกไฟล์</u></div>
+      <div class="t2">รองรับหลายไฟล์พร้อมกัน · ใบปะหน้าไปรษณีย์ไทย / EMS / Flash / Kerry / SPX ฯลฯ</div>
+      <div class="pill"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>อ่านไฟล์ในเครื่องนี้เท่านั้น ไม่อัปโหลดข้อมูลลูกค้าขึ้นเซิร์ฟเวอร์</div>
+    </div>
+  </label>
+
+  <div class="files" id="files"></div>
+
+  <section class="results" id="results">
+    <div class="stats">
+      <div class="stat hl"><div class="k">พัสดุทั้งหมด</div><div class="v" id="sParcels">0<small>กล่อง</small></div></div>
+      <div class="stat"><div class="k">จำนวนสินค้ารวม</div><div class="v" id="sUnits">0</div></div>
+      <div class="stat"><div class="k">กลุ่มจำนวน</div><div class="v" id="sGroups">0<small>กลุ่ม</small></div></div>
+      <div class="stat" id="sCheckBox"><div class="k">ต้องตรวจสอบ</div><div class="v" id="sCheck">0</div></div>
+    </div>
+
+    <div class="bar">
+      <button class="btn pri" id="copyAll"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>คัดลอกสรุปทั้งหมด</button>
+      <button class="btn" id="csv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>CSV / Excel</button>
+      <button class="btn" id="print"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>พิมพ์ใบแพ็ค</button>
+      <span class="sp"></span>
+      <div class="seg" role="group" aria-label="เรียงลำดับ">
+        <button class="on" data-sort="tracking">เรียงตามเลข</button>
+        <button data-sort="pdf">ตามลำดับใน PDF</button>
+      </div>
+      <button class="btn" id="clear" title="ล้างทั้งหมด">ล้าง</button>
+    </div>
+
+    <div class="warns" id="warns"></div>
+    <div id="out"></div>
+  </section>
+
+  <details class="adv">
+    <summary>ตั้งค่าขั้นสูง & วิธีอ่านจำนวน</summary>
+    <ul>
+      <li>หาเลขพัสดุรูปแบบ <span class="mono">AB123456789TH</span> (ไปรษณีย์ไทย/EMS) และ Flash / SPX / Kerry / Lazada / Ninja อัตโนมัติ</li>
+      <li>จำนวนอ่านจากบรรทัด “รายการสินค้า” เช่น <span class="mono">(2ตัว)(1)</span> = 2 × 1 = 2 ตัว · <span class="mono">x3</span> · <span class="mono">3 ชิ้น</span></li>
+      <li>กล่องที่อ่านจำนวนไม่ได้ จะแสดงสีส้มให้แก้ตัวเลขเองได้ · แตะแถวเพื่อติ๊ก “แพ็คแล้ว”</li>
+    </ul>
+    <label>รูปแบบเลขพัสดุเพิ่มเติม (Regex) — เว้นว่างได้
+      <input id="customRe" placeholder="เช่น \b8\d{11}\b  (J&T 12 หลัก)" autocomplete="off" spellcheck="false">
+    </label>
+  </details>
+</main>
+
+<footer><img src="logo.png" alt=""><span>Made by <b>TESR</b> · TESR Logistics</span></footer>
+<div class="toast" id="toast"></div>
+<div class="fullpage-drop" id="fpd">วางไฟล์ PDF ได้เลย</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
