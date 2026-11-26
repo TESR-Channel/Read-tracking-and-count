@@ -1,5 +1,8 @@
 /* TESR Track Count — UI */
 import { itemsToLines, parseDocument, groupParcels } from './parser.js';
+import { QC_URL, session, login, logout, toOrders, pushOrders, packedStatus } from './sync.js';
+
+export const APP_VERSION = 'v1.1';
 
 const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38';
 let pdfjsLib = null;
@@ -20,6 +23,7 @@ const state = {
   packed: new Set(),      // tracking ที่ติ๊กแพ็คแล้ว
   editing: new Set(),
   products: [], parcels: [], warnings: [],
+  qc: {},                 // tracking -> {at,tagger,url,result} จากระบบ QC (อัดหลักฐานแล้ว)
 };
 let seq = 0;
 
@@ -74,6 +78,7 @@ function analyse() {
   state.warnings = warnings;
   state.products = groupParcels(parcels, state.sort);
   render();
+  scheduleSync();
 }
 
 /* ---------- Render ---------- */
@@ -134,7 +139,7 @@ function render() {
                 ${q.parcels.map((p, i) => row(p, i, q)).join('')}
               </tbody>
             </table>
-            <div class="grp-f"><span>แพ็คแล้ว ${q.parcels.filter(p => state.packed.has(p.tracking)).length}/${q.parcels.length}</span><span>${q.parcels.length} กล่อง × ${q.qty} ${esc(q.unit)}</span></div>
+            <div class="grp-f"><span>แพ็คแล้ว ${q.parcels.filter(p => isPacked(p.tracking)).length}/${q.parcels.length}</span><span>${q.parcels.length} กล่อง × ${q.qty} ${esc(q.unit)}</span></div>
           </article>`).join('')}
       </div>
     </section>`).join('');
@@ -152,9 +157,11 @@ function row(p, i, q) {
   const qtyCell = edit
     ? `<input class="qin" type="number" min="0" inputmode="numeric" value="${p.qty}" data-qty="${esc(p.tracking)}" ${state.editing.has(p.tracking) ? 'data-focus' : ''} title="แก้จำนวน">${unsure ? ' <span class="qb unsure" title="อ่านจำนวนจาก PDF ไม่ได้ — ตรวจด้วยตา">?</span>' : ''}`
     : `<span class="qb" data-edit="${esc(p.tracking)}" title="แตะเพื่อแก้จำนวน">✓ ${p.qty} ${esc(p.unit || q.unit)}</span>`;
-  return `<tr class="${state.packed.has(p.tracking) ? 'packed' : ''}" data-pack="${esc(p.tracking)}" title="${esc(p.product)}${p.order ? ' · Order ' + esc(p.order) : ''}">
+  const qc = state.qc[p.tracking];
+  const qcTag = qc ? ` <a class="qcb" href="${esc(qc.url || QC_URL)}" target="_blank" rel="noopener" title="มีหลักฐานในระบบ QC — ${esc(qc.tagger || '')}">🎥 ${esc(hhmm(qc.at))}</a>` : '';
+  return `<tr class="${isPacked(p.tracking) ? 'packed' : ''}" data-pack="${esc(p.tracking)}" title="${esc(p.product)}${p.order ? ' · Order ' + esc(p.order) : ''}">
     <td class="no">${i + 1}</td>
-    <td class="tk mono"><span class="tick"><svg width="11" height="11" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>${esc(p.tracking)}<span class="sub">${esc(sub)}</span></td>
+    <td class="tk mono"><span class="tick"><svg width="11" height="11" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>${esc(p.tracking)}${qcTag}<span class="sub">${esc(sub)}</span></td>
     <td class="q">${qtyCell}</td>
   </tr>`;
 }
@@ -182,7 +189,7 @@ function downloadCsv() {
   const head = ['สินค้า', 'กลุ่มจำนวน', 'ลำดับ', 'Tracking', 'จำนวน', 'หน่วย', 'ผู้รับ', 'เลขคำสั่งซื้อ', 'COD', 'แพ็คแล้ว', 'ไฟล์', 'หน้า'];
   const rows = [head];
   for (const g of state.products) for (const q of g.groups) q.parcels.forEach((p, i) =>
-    rows.push([g.name, `${q.qty} ${q.unit}`, i + 1, p.tracking, p.qty, p.unit || q.unit, p.recipient, p.order, p.cod, state.packed.has(p.tracking) ? 'ใช่' : '', p.file, p.page]));
+    rows.push([g.name, `${q.qty} ${q.unit}`, i + 1, p.tracking, p.qty, p.unit || q.unit, p.recipient, p.order, p.cod, isPacked(p.tracking) ? (state.qc[p.tracking] ? 'อัดหลักฐานแล้ว' : 'ใช่') : '', p.file, p.page]));
   const csv = '﻿' + rows.map(r => r.map(v => {
     v = String(v ?? '');
     if (/^\d{10,}$/.test(v)) v = `="${v}"`; // กัน Excel แปลงเลขยาวเป็น 1.78E+12
@@ -275,7 +282,7 @@ $('copyAll').addEventListener('click', () => copy(summaryText(), 'คัดล�
 $('csv').addEventListener('click', downloadCsv);
 $('print').addEventListener('click', () => window.print());
 $('clear').addEventListener('click', () => {
-  state.files = []; state.overrides.clear(); state.packed.clear(); state.editing.clear();
+  state.files = []; state.overrides.clear(); state.packed.clear(); state.editing.clear(); state.qc = {}; lastSent = '';
   renderFiles(); analyse();
 });
 document.querySelectorAll('.seg [data-sort]').forEach(b => b.addEventListener('click', () => {
@@ -284,6 +291,60 @@ document.querySelectorAll('.seg [data-sort]').forEach(b => b.addEventListener('c
 }));
 let reT;
 $('customRe').addEventListener('input', () => { clearTimeout(reT); reT = setTimeout(analyse, 350); });
+
+/* ---------- Sync กับสถานีแพ็ค (TESR Logistics QC) ---------- */
+function isPacked(t) { return state.packed.has(t) || !!state.qc[t]; }
+function hhmm(iso) { const d = new Date(iso); return isNaN(d) ? '' : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
+let syncT = 0, lastSent = '', pollT = 0;
+function setSync(cls, html) { const el = $('sync'); el.className = 'sync ' + cls; el.innerHTML = html; }
+function renderAuth() {
+  const s = session();
+  $('who').textContent = s ? (s.name || s.email) : '';
+  $('logoutBtn').hidden = !s;
+  $('loginBox').hidden = !!s;
+  if (!s) setSync('warn', 'ยังไม่ได้เข้าสู่ระบบ — ออเดอร์จะยังไม่ถูกส่งให้สถานีแพ็ค');
+}
+function scheduleSync() { clearTimeout(syncT); if (state.parcels.length) syncT = setTimeout(syncNow, 900); }
+async function syncNow() {
+  if (!state.parcels.length) return;
+  if (!session()) { renderAuth(); return; }
+  const orders = toOrders(state.parcels, state.overrides);
+  const sig = JSON.stringify(orders.map(o => [o.tracking, o.qty, o.unit, o.items]));
+  try {
+    if (sig !== lastSent) {
+      setSync('busy', '<span class="spin"></span> กำลังส่งออเดอร์เข้าระบบแพ็ค…');
+      const r = await pushOrders(orders); lastSent = sig;
+      toast(`ส่งเข้าระบบแพ็คแล้ว ${orders.length} ออเดอร์`);
+      void r;
+    }
+    await refreshStatus();
+  } catch (e) {
+    if (e.auth) { renderAuth(); setSync('err', 'เซสชันหมดอายุ — เข้าสู่ระบบใหม่แล้วจะส่งให้อัตโนมัติ'); return; }
+    setSync('err', `ส่งไม่สำเร็จ: ${esc(e.message)} <button class="linkb" id="retrySync">ลองใหม่</button>`);
+    $('retrySync').onclick = syncNow;
+  }
+}
+async function refreshStatus() {
+  if (!state.parcels.length || !session()) return;
+  const st = await packedStatus(state.parcels.map(p => p.tracking));
+  state.qc = st; render();
+  const done = state.parcels.filter(p => st[p.tracking]).length;
+  const d = new Date();
+  setSync('ok', `☁ ส่งเข้าระบบแพ็คแล้ว <b>${state.parcels.length}</b> ออเดอร์ · อัดหลักฐานแล้ว <b>${done}</b>/${state.parcels.length} · อัปเดต ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} · <a href="${QC_URL}" target="_blank" rel="noopener">เปิดสถานีแพ็ค</a>`);
+  clearTimeout(pollT); pollT = setTimeout(() => { if (document.visibilityState === 'visible') refreshStatus().catch(() => {}); else pollT = setTimeout(refreshStatus, 30000); }, 30000);
+}
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const b = $('loginGo'); b.disabled = true; $('loginErr').textContent = '';
+  try { await login($('lgEmail').value, $('lgPhone').value); $('lgPhone').value = ''; renderAuth(); toast('เข้าสู่ระบบแล้ว'); syncNow(); }
+  catch (err) { $('loginErr').textContent = err.message; }
+  finally { b.disabled = false; }
+});
+$('logoutBtn').addEventListener('click', () => { logout(); renderAuth(); });
+window.addEventListener('storage', e => { if (e.key === 'tl:session') { renderAuth(); if (session()) syncNow(); } });   // login ในแท็บ QC → ใช้ได้ทันที
+try { $('lgEmail').value = JSON.parse(localStorage.getItem('tl:lastEmail') || '""'); } catch {}
+$('ver').textContent = APP_VERSION; document.title = `TESR Track Count ${APP_VERSION} — อ่านเลขพัสดุ & นับจำนวนจาก PDF`;
+renderAuth();
 
 // โหลด pdf.js ล่วงหน้าเพื่อให้เปิดไฟล์แรกเร็วขึ้น
 (window.requestIdleCallback || setTimeout)(() => loadPdfJs().catch(() => {}));

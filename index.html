@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>TESR Track Count — อ่านเลขพัสดุ & นับจำนวนจาก PDF</title>
+<title>TESR Track Count v1.1 — อ่านเลขพัสดุ & นับจำนวนจาก PDF</title>
 <meta name="description" content="อัปโหลดใบปะหน้าพัสดุ (PDF) แล้วแยกเลข Tracking ตามจำนวนสินค้าอัตโนมัติ — Made by TESR">
 <meta name="theme-color" content="#ffffff">
 <meta name="robots" content="noindex,nofollow">
@@ -177,6 +177,20 @@ details.adv ul{margin:8px 0 0 18px;color:var(--muted)}
 footer{text-align:center;padding:10px 16px calc(env(safe-area-inset-bottom) + 26px);font-family:"Chakra Petch",sans-serif;font-size:12px;letter-spacing:.06em;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:8px}
 footer img{width:18px}
 footer b{color:var(--crimson)}
+.ver{font-style:normal;font-size:11px;font-weight:700;letter-spacing:.04em;background:var(--gold);color:#141416;border-radius:999px;padding:2px 8px;vertical-align:2px;margin-left:4px}
+.who{font-size:12.5px;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.loginbox{margin-top:14px;background:var(--gold-soft);border:1px solid #ecdcae;border-radius:16px;padding:14px 16px;display:grid;gap:10px}
+.loginbox>div:first-child b{display:block;font-size:15px}.loginbox>div:first-child span{font-size:12.5px;color:var(--muted)}
+.loginbox .lf{display:flex;gap:8px;flex-wrap:wrap}
+.loginbox input{flex:1;min-width:170px;border:1px solid var(--line);border-radius:11px;padding:10px 12px;font:inherit;font-size:15px;background:#fff}
+.loginbox .err{color:var(--red);font-size:13px;width:100%}
+.sync{margin-top:12px;font-size:13.5px;border-radius:12px;padding:9px 13px;display:none;align-items:center;gap:8px;flex-wrap:wrap}
+.sync:not(:empty){display:flex}
+.sync.ok{background:var(--ok-soft);color:#17673a}.sync.busy{background:#eef1ff;color:#2f45b5}.sync.err{background:var(--red-soft);color:var(--red)}.sync.warn{background:var(--warn-soft);color:#7a5410}
+.sync a,.linkb{color:inherit;font-weight:600;text-decoration:underline;background:none;border:0;cursor:pointer;font:inherit}
+.qcb{font-family:"IBM Plex Sans Thai",sans-serif;font-size:11px;font-weight:600;color:#2f45b5;background:#eef1ff;border-radius:6px;padding:1px 6px;margin-left:6px;text-decoration:none;white-space:nowrap}
+tr.packed .qcb{filter:none;color:#2f45b5}
+@media (max-width:640px){.who{display:none}}
 
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 22px);transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;border-radius:12px;padding:10px 16px;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);transition:all .25s;pointer-events:none;z-index:50}
 .toast.show{opacity:1;transform:translate(-50%,0)}
@@ -187,7 +201,7 @@ footer b{color:var(--crimson)}
 @media print{
   @page{margin:12mm}
   body{background:#fff}
-  .top,.drop,.files,.bar,details.adv,.icon-btn,.toast,.warns,footer .x{display:none!important}
+  .top,.drop,.files,.bar,details.adv,.icon-btn,.toast,.warns,footer .x,.loginbox,.sync{display:none!important}
   main{padding:0;max-width:none}
   .hero{margin:0 0 10px;text-align:left}
   .hero p,.hairline{display:none}
@@ -206,9 +220,11 @@ footer b{color:var(--crimson)}
   <div class="top-in">
     <a class="brand" href="https://programs.tesrshop.com/">
       <img src="logo.png" alt="TESR">
-      <span><b>TESR <span>Track Count</span></b><small>THAI EMBEDDED SYSTEM AND ROBOTICS</small></span>
+      <span><b>TESR <span>Track Count</span> <em class="ver" id="ver">v1.1</em></b><small>THAI EMBEDDED SYSTEM AND ROBOTICS</small></span>
     </a>
     <span class="sp"></span>
+    <span class="who" id="who"></span><button class="ghost" id="logoutBtn" hidden>ออกจากระบบ</button>
+    <a class="ghost" href="https://tesr-channel.github.io/Logistic-tracking-and-evidence/" target="_blank" rel="noopener" title="สถานีแพ็ค / QC">🎥 สถานีแพ็ค</a>
     <a class="ghost" href="https://programs.tesrshop.com/" title="กลับหน้ารวมโปรแกรม">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
       TESR Program
@@ -231,11 +247,17 @@ footer b{color:var(--crimson)}
     <div>
       <div class="t1">ลากไฟล์ PDF มาวางที่นี่ หรือ <u>แตะเพื่อเลือกไฟล์</u></div>
       <div class="t2">รองรับหลายไฟล์พร้อมกัน · ใบปะหน้าไปรษณีย์ไทย / EMS / Flash / Kerry / SPX ฯลฯ</div>
-      <div class="pill"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>อ่านไฟล์ในเครื่องนี้เท่านั้น ไม่อัปโหลดข้อมูลลูกค้าขึ้นเซิร์ฟเวอร์</div>
+      <div class="pill"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>อ่าน PDF ในเครื่อง · ส่งเข้าระบบแพ็คเฉพาะเลขพัสดุ จำนวน และชื่อสินค้า (ไม่ส่งชื่อ ที่อยู่ เบอร์ผู้รับ)</div>
     </div>
   </label>
 
   <div class="files" id="files"></div>
+
+  <div class="loginbox" id="loginBox" hidden>
+    <div><b>เข้าสู่ระบบเพื่อส่งออเดอร์ให้สถานีแพ็ค</b><span>ใช้อีเมล + เบอร์โทรเดียวกับระบบ TESR Logistics QC — ถ้า login ในเครื่องนี้แล้ว ไม่ต้องทำซ้ำ</span></div>
+    <form class="lf" id="loginForm"><input id="lgEmail" type="email" autocomplete="username" autocapitalize="none" placeholder="อีเมลพนักงาน" required><input id="lgPhone" type="password" inputmode="tel" autocomplete="current-password" placeholder="เบอร์โทร (รหัสผ่าน)" required><button class="btn pri" id="loginGo">เข้าสู่ระบบ</button><div class="err" id="loginErr"></div></form>
+  </div>
+  <div class="sync" id="sync"></div>
 
   <section class="results" id="results">
     <div class="stats">
@@ -274,7 +296,7 @@ footer b{color:var(--crimson)}
   </details>
 </main>
 
-<footer><img src="logo.png" alt=""><span>Made by <b>TESR</b> · TESR Logistics</span></footer>
+<footer><img src="logo.png" alt=""><span>Made by <b>TESR</b> · TESR Logistics · Track Count <b>v1.1</b></span></footer>
 <div class="toast" id="toast"></div>
 <div class="fullpage-drop" id="fpd">วางไฟล์ PDF ได้เลย</div>
 
