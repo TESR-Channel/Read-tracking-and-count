@@ -2,7 +2,7 @@
 import { itemsToLines, parseDocument, groupParcels } from './parser.js';
 import { QC_URL, session, login, logout, toOrders, pushOrders, packedStatus } from './sync.js';
 
-export const APP_VERSION = 'v1.1';
+export const APP_VERSION = 'v1.2';
 
 const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38';
 let pdfjsLib = null;
@@ -119,7 +119,7 @@ function render() {
   const multi = state.products.length > 1;
   $('out').innerHTML = state.products.map((g, gi) => `
     <section class="product">
-      <h2>${esc(g.name)} <span class="tag">${g.totalParcels} กล่อง · ${g.totalUnits} ${esc(g.unit)}</span></h2>
+      <h2>${g.groups.some(q => q.parcels.some(p => p.items.length > 1)) ? '<span class="mixtag">📦 หลายสินค้าในกล่องเดียว</span> ' : ''}${esc(g.name)} <span class="tag">${g.totalParcels} กล่อง · ${g.totalUnits} ${esc(g.unit)}</span></h2>
       <div class="groups">
         ${g.groups.map((q, qi) => `
           <article class="grp">
@@ -161,7 +161,7 @@ function row(p, i, q) {
   const qcTag = qc ? ` <a class="qcb" href="${esc(qc.url || QC_URL)}" target="_blank" rel="noopener" title="มีหลักฐานในระบบ QC — ${esc(qc.tagger || '')}">🎥 ${esc(hhmm(qc.at))}</a>` : '';
   return `<tr class="${isPacked(p.tracking) ? 'packed' : ''}" data-pack="${esc(p.tracking)}" title="${esc(p.product)}${p.order ? ' · Order ' + esc(p.order) : ''}">
     <td class="no">${i + 1}</td>
-    <td class="tk mono"><span class="tick"><svg width="11" height="11" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>${esc(p.tracking)}${qcTag}<span class="sub">${esc(sub)}</span></td>
+    <td class="tk mono"><span class="tick"><svg width="11" height="11" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>${esc(p.tracking)}${qcTag}<span class="sub">${esc(sub)}</span>${p.items.length > 1 ? `<span class="mix">📦 ${p.items.length} รายการในกล่องนี้:${p.items.map(x => `<i>${x.qty} ${esc(x.unit || 'ชิ้น')} · ${esc(x.name)}</i>`).join('')}</span>` : ''}</td>
     <td class="q">${qtyCell}</td>
   </tr>`;
 }

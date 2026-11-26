@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>TESR Track Count v1.1 — อ่านเลขพัสดุ & นับจำนวนจาก PDF</title>
+<title>TESR Track Count v1.2 — อ่านเลขพัสดุ & นับจำนวนจาก PDF</title>
 <meta name="description" content="อัปโหลดใบปะหน้าพัสดุ (PDF) แล้วแยกเลข Tracking ตามจำนวนสินค้าอัตโนมัติ — Made by TESR">
 <meta name="theme-color" content="#ffffff">
 <meta name="robots" content="noindex,nofollow">
@@ -151,6 +151,9 @@ td{padding:9px 10px;border-bottom:1px solid var(--line2);vertical-align:middle}
 tr:last-child td{border-bottom:0}
 td.no,th.no{width:42px;text-align:right;color:var(--muted);padding-left:14px}
 td.tk{font-weight:600}
+td.tk .mix{display:block;font-family:"IBM Plex Sans Thai",sans-serif;font-weight:600;font-size:12.5px;color:var(--crimson,#8B0000);margin-top:4px;white-space:normal}
+td.tk .mix i{display:block;font-style:normal;font-weight:500;color:var(--ink,#1a1a1a);padding-left:12px}
+.mixtag{display:inline-block;font-size:12px;font-weight:700;color:#fff;background:#b7791f;border-radius:6px;padding:2px 8px;vertical-align:middle}
 td.tk .sub{display:block;font-family:"IBM Plex Sans Thai",sans-serif;font-weight:400;font-size:11.5px;color:var(--muted);margin-top:1px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 td.q,th.q{text-align:right;white-space:nowrap;padding-right:14px}
 .qb{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--ok);background:var(--ok-soft);border-radius:8px;padding:3px 8px}
@@ -179,6 +182,7 @@ footer img{width:18px}
 footer b{color:var(--crimson)}
 .ver{font-style:normal;font-size:11px;font-weight:700;letter-spacing:.04em;background:var(--gold);color:#141416;border-radius:999px;padding:2px 8px;vertical-align:2px;margin-left:4px}
 .who{font-size:12.5px;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+[hidden]{display:none!important}
 .loginbox{margin-top:14px;background:var(--gold-soft);border:1px solid #ecdcae;border-radius:16px;padding:14px 16px;display:grid;gap:10px}
 .loginbox>div:first-child b{display:block;font-size:15px}.loginbox>div:first-child span{font-size:12.5px;color:var(--muted)}
 .loginbox .lf{display:flex;gap:8px;flex-wrap:wrap}
@@ -190,7 +194,7 @@ footer b{color:var(--crimson)}
 .sync a,.linkb{color:inherit;font-weight:600;text-decoration:underline;background:none;border:0;cursor:pointer;font:inherit}
 .qcb{font-family:"IBM Plex Sans Thai",sans-serif;font-size:11px;font-weight:600;color:#2f45b5;background:#eef1ff;border-radius:6px;padding:1px 6px;margin-left:6px;text-decoration:none;white-space:nowrap}
 tr.packed .qcb{filter:none;color:#2f45b5}
-@media (max-width:640px){.who{display:none}}
+@media (max-width:640px){.who{display:none}.top .lbl{display:none}.top .ghost{padding-left:10px;padding-right:10px}.top-in{gap:8px}.brand small{display:none}}
 
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 22px);transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;border-radius:12px;padding:10px 16px;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);transition:all .25s;pointer-events:none;z-index:50}
 .toast.show{opacity:1;transform:translate(-50%,0)}
@@ -220,14 +224,14 @@ tr.packed .qcb{filter:none;color:#2f45b5}
   <div class="top-in">
     <a class="brand" href="https://programs.tesrshop.com/">
       <img src="logo.png" alt="TESR">
-      <span><b>TESR <span>Track Count</span> <em class="ver" id="ver">v1.1</em></b><small>THAI EMBEDDED SYSTEM AND ROBOTICS</small></span>
+      <span><b>TESR <span>Track Count</span> <em class="ver" id="ver">v1.2</em></b><small>THAI EMBEDDED SYSTEM AND ROBOTICS</small></span>
     </a>
     <span class="sp"></span>
-    <span class="who" id="who"></span><button class="ghost" id="logoutBtn" hidden>ออกจากระบบ</button>
-    <a class="ghost" href="https://tesr-channel.github.io/Logistic-tracking-and-evidence/" target="_blank" rel="noopener" title="สถานีแพ็ค / QC">🎥 สถานีแพ็ค</a>
+    <span class="who" id="who"></span><button class="ghost" id="logoutBtn" hidden title="ออกจากระบบ"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></svg><span class="lbl">ออกจากระบบ</span></button>
+    <a class="ghost" href="https://tesr-channel.github.io/Logistic-tracking-and-evidence/" target="_blank" rel="noopener" title="สถานีแพ็ค / QC">🎥<span class="lbl"> สถานีแพ็ค</span></a>
     <a class="ghost" href="https://programs.tesrshop.com/" title="กลับหน้ารวมโปรแกรม">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
-      TESR Program
+      <span class="lbl">TESR Program</span>
     </a>
   </div>
 </header>
@@ -296,7 +300,7 @@ tr.packed .qcb{filter:none;color:#2f45b5}
   </details>
 </main>
 
-<footer><img src="logo.png" alt=""><span>Made by <b>TESR</b> · TESR Logistics · Track Count <b>v1.1</b></span></footer>
+<footer><img src="logo.png" alt=""><span>Made by <b>TESR</b> · TESR Logistics · Track Count <b>v1.2</b></span></footer>
 <div class="toast" id="toast"></div>
 <div class="fullpage-drop" id="fpd">วางไฟล์ PDF ได้เลย</div>
 

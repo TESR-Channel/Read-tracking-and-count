@@ -20,7 +20,9 @@ export const TRACKING_PATTERNS = [
 const LABELLED_TRACKING = /(?:tracking\s*(?:no\.?|number|#)?|เลขพัสดุ|หมายเลขพัสดุ|เลขที่พัสดุ|เลขติดตาม(?:พัสดุ)?)\s*[:：#]?\s*([A-Z0-9]{8,24})/gi;
 
 const ITEM_LABEL = /(รายการสินค้า|ชื่อสินค้า|สินค้า|product(?:s| name)?|items?|sku)\s*[:：]\s*/i;
-const STOP_FIELD = /(โทร|เบอร์|ผู้รับ|ผู้ส่ง|COD|เก็บเงิน|วันที่|เลขที่|หมายเหตุ|ที่อยู่|น้ำหนัก|ราคา|ยอด|ชำระ|tracking|order|ref)\s*[:：.]?/i;
+/* หัวข้อฟิลด์ถัดไป — ต้องอยู่ "ต้นบรรทัด" เท่านั้น
+   (เดิมจับคำกลางบรรทัด ทำให้ชื่อสินค้าอย่าง "ดัมเบลยกน้ำหนัก" ถูกตัดทิ้งเป็นฟิลด์น้ำหนัก) */
+const STOP_FIELD = /^\s*(?:โทร|เบอร์|ผู้รับ|ผู้ส่ง|COD|เก็บเงิน|วันที่|เลขที่|หมายเหตุ|ที่อยู่|น้ำหนัก|ราคา|ยอด|ชำระ|รวม|tracking|order|ref)(?:\s*[:：.]|\s|$)/i;
 
 /* ---------- 1) pdf.js text items → บรรทัด ---------- */
 export function itemsToLines(items) {
@@ -135,7 +137,7 @@ function extractFields(lines) {
     const L = lines[i];
     if (!out.recipient) {
       const m = L.match(/^\s*(?:ผู้รับ|ชื่อผู้รับ|to|ship to)\s*[:：]?\s*(.+)$/i);
-      if (m) out.recipient = m[1].replace(/\(?\+?\d[\d\s\-]{7,}\)?/g, '').replace(/\s+/g, ' ').trim();
+      if (m) out.recipient = m[1].replace(/\s*(?:โทร|tel\b|phone\b|เบอร์).*$/i, '').replace(/\(?\+?\d[\d\s\-]{7,}\)?/g, '').replace(/\s+/g, ' ').trim();
     }
     if (!out.order) {
       const m = L.match(/(?:เลขที่คำสั่งซื้อ|คำสั่งซื้อ|order\s*(?:no\.?|id|number|#)?)\s*[:：#]?\s*([A-Z0-9\-]{5,})/i);
@@ -150,10 +152,14 @@ function extractFields(lines) {
       let txt = L.slice(im.index + im[0].length);
       for (let j = i + 1; j < lines.length && j <= i + 4; j++) {
         const nx = lines[j];
-        if (!nx.trim() || STOP_FIELD.test(nx) || findTrackings(nx).length) break;
+        if (!nx.trim() || findTrackings(nx).length) break;
+        // บรรทัดก่อนลงท้ายด้วย , หรือ + = รายการยังไม่จบ อ่านต่อเสมอ
+        if (STOP_FIELD.test(nx) && !/[,，+;]\s*$/.test(txt)) break;
         txt += ' ' + nx.trim();
       }
       out.items = splitProducts(txt).map(parseProduct);
+      // รายการลงท้ายด้วย , แต่ไม่มีบรรทัดต่อ = อาจอ่านไม่ครบ → ให้คนตรวจ
+      if (/[,，+;]\s*$/.test(txt)) out.items.forEach(x => { x.sure = false; });
     }
   }
   return out;
