@@ -2,7 +2,7 @@
 import { itemsToLines, parseDocument, groupParcels } from './parser.js';
 import { QC_URL, session, login, logout, toOrders, pushOrders, packedStatus } from './sync.js';
 
-export const APP_VERSION = 'v1.2';
+export const APP_VERSION = 'v1.3';
 
 const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38';
 let pdfjsLib = null;

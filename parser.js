@@ -19,10 +19,24 @@ export const TRACKING_PATTERNS = [
 /* ป้ายกำกับที่มักอยู่หน้าเลขพัสดุ (ใช้เป็นตัวช่วยกรณีรูปแบบไม่ตรงด้านบน) */
 const LABELLED_TRACKING = /(?:tracking\s*(?:no\.?|number|#)?|เลขพัสดุ|หมายเลขพัสดุ|เลขที่พัสดุ|เลขติดตาม(?:พัสดุ)?)\s*[:：#]?\s*([A-Z0-9]{8,24})/gi;
 
-const ITEM_LABEL = /(รายการสินค้า|ชื่อสินค้า|สินค้า|product(?:s| name)?|items?|sku)\s*[:：]\s*/i;
+const ITEM_LABEL = /(รายการสินค้า|รายละเอียดสินค้า|ชื่อสินค้า|สินค้า|product(?:s|\s*name)?|items?|description|contents?|sku)\s*[:：]\s*/i;
+/* หัวตาราง เช่น "ชื่อสินค้า   SKU   จำนวน" / "Product Name ... Qty" (ไม่มีโคลอน) */
+const TABLE_HEAD = /^\s*(?:ลำดับ\s+|no\.?\s+|#\s+)?(?:รายการสินค้า|ชื่อสินค้า|รายการ|สินค้า|product(?:\s*name)?|item(?:\s*name)?|description)\b.*\b(?:จำนวน|qty|quantity|amount)\b/i;
+const LABELS = 'โทร|เบอร์|ผู้รับ|ชื่อผู้รับ|ผู้ส่ง|ชื่อผู้ส่ง|COD|เก็บเงิน|วันที่|เลขที่|หมายเหตุ|ที่อยู่|น้ำหนัก|ราคา|ยอด|ชำระ|รวม|สั่งซื้อ|คำสั่งซื้อ|ขนส่ง|บริการ|ค่าส่ง|ค่าจัดส่ง|ส่วนลด|ผู้ขาย|ร้านค้า|ลงชื่อ|tracking|order|ref|from|to|ship\\s*to|sender|recipient|buyer|seller|date|remark|note|weight|price|total|subtotal|shipping|payment|tel|phone|page';
 /* หัวข้อฟิลด์ถัดไป — ต้องอยู่ "ต้นบรรทัด" เท่านั้น
-   (เดิมจับคำกลางบรรทัด ทำให้ชื่อสินค้าอย่าง "ดัมเบลยกน้ำหนัก" ถูกตัดทิ้งเป็นฟิลด์น้ำหนัก) */
-const STOP_FIELD = /^\s*(?:โทร|เบอร์|ผู้รับ|ผู้ส่ง|COD|เก็บเงิน|วันที่|เลขที่|หมายเหตุ|ที่อยู่|น้ำหนัก|ราคา|ยอด|ชำระ|รวม|tracking|order|ref)(?:\s*[:：.]|\s|$)/i;
+   (ไม่จับคำกลางบรรทัด: ชื่อสินค้าอย่าง "ดัมเบลยกน้ำหนัก" ต้องไม่ถูกตัดเป็นฟิลด์น้ำหนัก) */
+const STOP_FIELD = new RegExp('^\\s*(?:' + LABELS + ')(?:[^\\s:：]{0,20}\\s*[:：]|\\s*[:：.]|\\s|$)', 'i');
+// บรรทัดที่มีวันที่ (เช่น 27/11/2026) ไม่ใช่ชื่อสินค้า
+const DATE_RE = /\b\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}\b/;
+const PHONE_RE = /(?:^|[^\d])0\d{1,2}[-\s]?\d{3}[-\s]?\d{3,4}(?!\d)/;
+const ADDR_RE = /(?:^|\s)(?:ต\.|อ\.|จ\.|แขวง|เขต|จังหวัด|ตำบล|อำเภอ)\S|\b\d{5}\s*$/;
+const NOISE_RE = /^[\d\s]{8,}$|^\s*(?:หน้า|page)\s*\d+|^\s*[-_=*.]{4,}\s*$/i;
+/* เครื่องหมายจำนวนท้ายรายการ: (2)  x2  ×2  *2  Qty 2  จำนวน 2  2 ชิ้น */
+const QTY_END = new RegExp('(?:\\(\\s*[x×]?\\s*\\d{1,4}\\s*\\)|\\[\\s*[x×]\\s*\\d{1,4}\\s*\\]|(?:^|\\s)[x×*]\\s*\\d{1,4}|(?:qty|quantity|จำนวน)\\s*[:：]?\\s*\\d{1,4}(?:\\s*(?:' + UNIT_RE + '))?|\\d{1,4}\\s*(?:' + UNIT_RE + ')\\.?)\\s*$', 'i');
+/* ยอดรวมจำนวนชิ้นบนใบปะหน้า (ใช้ตรวจทาน) */
+const TOTAL_RE = new RegExp('(?:จำนวน(?:สินค้า)?(?:ทั้งหมด|รวม)|รวม(?:ทั้งหมด)?|total\\s*(?:qty|quantity|items?)|(?:qty|quantity)\\s*total|items?\\s*total)\\s*[:：]?\\s*(\\d{1,4})\\s*(?:' + UNIT_RE + '|รายการ)?(?![\\d.,])', 'i');
+const TABLE_QTY = /\s{3,}\d{1,4}\s*$/;
+const BULLET = /^\s*(?:\d{1,2}\s*[.)]|[-•*·▪●○])\s+/;
 
 /* ---------- 1) pdf.js text items → บรรทัด ---------- */
 export function itemsToLines(items) {
@@ -86,16 +100,22 @@ export function findTrackings(line, extraRe) {
 
 /* ---------- 3) แยกจำนวนจากชื่อสินค้า 1 รายการ ---------- */
 export function parseProduct(raw) {
-  let s = raw.replace(/\s+/g, ' ').trim();
-  let unitQty = null, unit = null, mult = null;
+  let s = raw.replace(/\s+/g, ' ').trim().replace(BULLET, '');
+  let unitQty = null, unit = null, mult = null, m;
 
-  // ตัวคูณท้ายรายการ เช่น ...(1)  หรือ x2  หรือ จำนวน 2
-  let m = s.match(/\(\s*(\d{1,4})\s*\)\s*$/);
-  if (m) { mult = +m[1]; s = s.slice(0, m.index).trim(); }
-  else if ((m = s.match(/(?:\s|^)[x×*]\s*(\d{1,4})\s*$/i))) { mult = +m[1]; s = s.slice(0, m.index).trim(); }
-  else if ((m = s.match(/จำนวน\s*[:：]?\s*(\d{1,4})\s*$/))) { mult = +m[1]; s = s.slice(0, m.index).trim(); }
+  // ตัวคูณท้ายรายการ: (1)  (x2)  [x2]  x2  ×2  *2  Qty: 2  จำนวน 2 (ชิ้น)  หรือคอลัมน์จำนวนในตาราง
+  const tails = [
+    /\(\s*[x×]?\s*(\d{1,4})\s*\)\s*$/i,
+    /\[\s*[x×]\s*(\d{1,4})\s*\]\s*$/i,
+    /(?:\s|^)[x×*]\s*(\d{1,4})\s*$/i,
+    new RegExp('(?:qty|quantity|จำนวน)\\s*[:：]?\\s*(\\d{1,4})\\s*(?:(' + UNIT_RE + ')\\.?)?\\s*$', 'i'),
+    /\s{3,}(\d{1,4})\s*$/,                       // ตาราง: คอลัมน์จำนวนท้ายบรรทัด
+  ];
+  for (const re of tails) {
+    if ((m = s.match(re))) { mult = +m[1]; if (m[2]) unit = m[2]; s = s.slice(0, m.index).trim(); break; }
+  }
 
-  // จำนวนต่อชุด เช่น (2ตัว) (1 ชิ้น)
+  // จำนวนต่อชุดในวงเล็บ เช่น (2ตัว) (1 ชิ้น) — คูณกับตัวคูณ
   const inParen = new RegExp('\\(\\s*(\\d{1,4})\\s*(' + UNIT_RE + ')[^)]*\\)', 'gi');
   let last = null;
   while ((m = inParen.exec(s))) last = m;
@@ -103,15 +123,28 @@ export function parseProduct(raw) {
     unitQty = +last[1]; unit = last[2];
     s = (s.slice(0, last.index) + s.slice(last.index + last[0].length)).trim();
   } else {
-    const loose = new RegExp('(\\d{1,4})\\s*(' + UNIT_RE + ')(?![ก-๙a-z])', 'gi');
-    while ((m = loose.exec(s))) last = m;
-    if (last) { unitQty = +last[1]; unit = last[2]; }
+    // "2 ตัว" ท้ายชื่อ = จำนวน (ใช้เมื่อไม่มีตัวคูณอื่น — ถ้ามีตัวคูณแล้ว ถือเป็นคำบรรยาย เช่น "ชุดไขควง 3 ชิ้น(1)")
+    const loose = new RegExp('(\\d{1,4})\\s*(' + UNIT_RE + ')(?![ก-๙a-z])\\.?\\s*$', 'i');
+    if (mult === null && (m = s.match(loose))) { unitQty = +m[1]; unit = m[2]; s = s.slice(0, m.index).trim(); }
   }
 
   const sure = unitQty !== null || mult !== null;
-  const qty = (unitQty ?? 1) * (mult ?? 1);
-  const name = s.replace(/[\s,;:\-–]+$/, '').replace(/\(\s*\)/g, '').trim() || 'สินค้า';
+  const qty = Math.max(1, (unitQty ?? 1) * (mult ?? 1));
+  const name = s.replace(/[\s,;:\-–|]+$/, '').replace(/\(\s*\)/g, '').trim() || 'สินค้า';
   return { raw: raw.trim(), name, qty, unit: unit ? normUnit(unit) : null, sure };
+}
+
+/* แถวตาราง: คอลัมน์คั่นด้วยช่องว่างยาว — ชื่อสินค้า | SKU | ... | จำนวน */
+function parseTableRow(raw) {
+  const cols = raw.trim().replace(BULLET, '').split(/\s{3,}|\t|\s\|\s/).map(c => c.trim()).filter(Boolean);
+  const lastCol = cols[cols.length - 1] || '';
+  if (cols.length >= 2 && /^\d{1,4}$/.test(lastCol)) {
+    const qty = +lastCol;
+    const nameCols = cols.slice(0, -1).filter((c, k) => k === 0 || !/^[A-Z0-9][A-Z0-9\-_./]*$/i.test(c));
+    const nameCols2 = nameCols.filter((c, k) => !(k > 0 && /^[\d.,฿]+$/.test(c)));   // ตัดคอลัมน์ราคา
+    return { raw: raw.trim(), name: nameCols2.join(' · ') || 'สินค้า', qty: Math.max(1, qty), unit: null, sure: qty > 0 };
+  }
+  return parseProduct(raw);
 }
 
 function normUnit(u) {
@@ -126,7 +159,10 @@ function normUnit(u) {
 export function splitProducts(text) {
   const t = text.replace(/\s+/g, ' ').trim();
   if (!t) return [];
-  const parts = t.split(/(?<=\(\s*\d{1,4}\s*\))\s*[,;、]?\s*(?=\S)/);
+  // ตัดหลัง (n) ที่ตามด้วยข้อความใหม่ หรือหลัง xN / N ชิ้น ที่ตามด้วย , ;
+  const parts = t
+    .split(/(?<=\(\s*[x×]?\s*\d{1,4}\s*\))\s*[,;、]?\s*(?=\S)/i)
+    .flatMap(p => p.split(new RegExp('(?<=(?:[x×]\\s*\\d{1,4}|\\d{1,4}\\s*(?:' + UNIT_RE + ')))\\s*[,;、]\\s*(?=\\S)', 'i')));
   return parts.map(p => p.replace(/^[,;\s]+|[,;\s]+$/g, '')).filter(Boolean);
 }
 
@@ -147,22 +183,69 @@ function extractFields(lines) {
       const m = L.match(/COD\s*[:：]?\s*([\d,\.]+)/i);
       if (m) out.cod = m[1];
     }
-    const im = L.match(ITEM_LABEL);
-    if (im && !out.items.length) {
-      let txt = L.slice(im.index + im[0].length);
-      for (let j = i + 1; j < lines.length && j <= i + 4; j++) {
-        const nx = lines[j];
-        if (!nx.trim() || findTrackings(nx).length) break;
-        // บรรทัดก่อนลงท้ายด้วย , หรือ + = รายการยังไม่จบ อ่านต่อเสมอ
-        if (STOP_FIELD.test(nx) && !/[,，+;]\s*$/.test(txt)) break;
-        txt += ' ' + nx.trim();
+    if (!out.items.length && !out._itemsDone) {
+      const im = L.match(ITEM_LABEL);
+      const table = !im && TABLE_HEAD.test(L);
+      if (im || table) {
+        out._itemsDone = true;
+        const r = readItems(lines, i, im ? L.slice(im.index + im[0].length) : '', table);
+        out.items = r.items; out._block = r.end;
       }
-      out.items = splitProducts(txt).map(parseProduct);
-      // รายการลงท้ายด้วย , แต่ไม่มีบรรทัดต่อ = อาจอ่านไม่ครบ → ให้คนตรวจ
-      if (/[,，+;]\s*$/.test(txt)) out.items.forEach(x => { x.sure = false; });
+    }
+    if (!out.total) {
+      const m = L.match(TOTAL_RE);
+      if (m && !/(?:บาท|฿|thb|cod)/i.test(L)) out.total = +m[1];
     }
   }
+  // ตรวจทานกับยอดรวมบนใบปะหน้า
+  if (out.total) {
+    const sum = out.items.reduce((a, b) => a + b.qty, 0);
+    if (!out.items.length) out.items = [{ raw: '', name: 'สินค้า', qty: out.total, unit: null, sure: true }];
+    else if (sum !== out.total) out.items.forEach(x => { x.sure = false; });
+    else out.items.forEach(x => { x.sure = true; });
+  }
+  delete out._itemsDone; delete out._block;
   return out;
+}
+
+/* อ่านบล็อกรายการสินค้า: ต่อบรรทัดที่ถูกตัด, แยกรายการตามเลขลำดับ/จำนวน, หยุดที่ฟิลด์ถัดไป */
+const isJunk = nx => !nx.trim() || STOP_FIELD.test(nx) || TOTAL_RE.test(nx) || DATE_RE.test(nx) || PHONE_RE.test(nx) || ADDR_RE.test(nx) || NOISE_RE.test(nx) || findTrackings(nx).length > 0;
+const openEnd = t => /[,，+;&]\s*$/.test(t) || /\band\s*$/i.test(t);
+
+function readItems(lines, i, first, table) {
+  const entries = [];
+  let cur = first.trim();
+  const push = () => { if (cur.trim()) entries.push(cur.trim()); cur = ''; };
+  let j = i + 1, cut = false;
+  for (; j < lines.length && j <= i + 15; j++) {
+    const nx = lines[j];
+    if (!nx.trim()) { if (cur && !openEnd(cur)) break; continue; }
+    if (findTrackings(nx).length) break;
+    if (isJunk(nx) && !openEnd(cur)) break;
+    if (table && TABLE_HEAD.test(nx)) continue;
+    const t = nx.trim();
+    if (BULLET.test(t)) { push(); cur = t; continue; }               // 1. / 2) / - / •  = รายการใหม่
+    if (!cur) { cur = t; continue; }
+    if (table) { if (TABLE_QTY.test(cur) || QTY_END.test(cur)) { push(); cur = t; } else cur += ' ' + t; continue; }
+    if (openEnd(cur)) { cur += ' ' + t; continue; }                  // บรรทัดก่อนลงท้าย , = ยังไม่จบ
+    if (QTY_END.test(t)) { if (QTY_END.test(cur)) { push(); cur = t; } else cur += ' ' + t; continue; }
+    if (!QTY_END.test(cur)) { cur += ' ' + t; continue; }            // ชื่อยาวถูกตัดขึ้นบรรทัดใหม่
+    break;                                                           // รายการจบแล้ว + บรรทัดไม่ใช่สินค้า
+  }
+  if (openEnd(cur)) cut = true;
+  push();
+  const items = [];
+  for (const e of entries) {
+    for (const part of (table ? [e] : splitProducts(e))) {
+      const it = table ? parseTableRow(part) : parseProduct(part);
+      if (!it.name || it.name === 'สินค้า' && !it.sure) continue;
+      if (STOP_FIELD.test(it.name) || DATE_RE.test(it.name)) continue;
+      items.push(it);
+    }
+  }
+  // รายการลงท้ายด้วย , แต่ไม่มีบรรทัดต่อ = อาจอ่านไม่ครบ → ให้คนตรวจ
+  if (cut) items.forEach(x => { x.sure = false; });
+  return { items, end: j };
 }
 
 /* ---------- 5) ทั้งเอกสาร: pages = [{ file, page, lines:[...] }] ---------- */
